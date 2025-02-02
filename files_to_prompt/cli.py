@@ -27,11 +27,13 @@ def read_gitignore(path):
 
 def add_line_numbers(content):
     lines = content.splitlines()
-
     padding = len(str(len(lines)))
-
-    numbered_lines = [f"{i+1:{padding}}  {line}" for i, line in enumerate(lines)]
-    return "\n".join(numbered_lines)
+    
+    def numbered_line_generator():
+        for i, line in enumerate(lines, 1):
+            yield f"{i:{padding}}  {line}"
+    
+    return numbered_line_generator()
 
 
 def print_path(writer, path, content, xml, line_numbers):
@@ -207,11 +209,19 @@ def cli(
     global global_index
     global_index = 1
     gitignore_rules = []
-    writer = click.echo
+
+    # Create a writer that handles both strings and iterators
+    def streaming_writer(content):
+        if hasattr(content, '__iter__') and not isinstance(content, (str, bytes)):
+            for line in content:
+                click.echo(line, file=fp) if output_file else click.echo(line)
+        else:
+            click.echo(content, file=fp) if output_file else click.echo(content)
+
+    writer = streaming_writer
     fp = None
     if output_file:
         fp = open(output_file, "w")
-        writer = lambda s: print(s, file=fp)
     for path in paths:
         if not os.path.exists(path):
             raise click.BadArgumentUsage(f"Path does not exist: {path}")
