@@ -25,41 +25,44 @@ def read_gitignore(path):
     return []
 
 
-def add_line_numbers(content):
+def add_line_numbers(content, fenced=False):
     lines = content.splitlines()
     padding = len(str(len(lines)))
     
     def numbered_line_generator():
         for i, line in enumerate(lines, 1):
-            yield f"{i:{padding}}  {line}"
+            if fenced:
+                yield f"[{i:{padding}}] {line}"
+            else:
+                yield f"{i:{padding}}  {line}"
     
     return numbered_line_generator()
 
 
-def print_path(writer, path, content, xml, line_numbers):
+def print_path(writer, path, content, xml, line_numbers, fenced_numbers=False):
     if xml:
-        print_as_xml(writer, path, content, line_numbers)
+        print_as_xml(writer, path, content, line_numbers, fenced_numbers)
     else:
-        print_default(writer, path, content, line_numbers)
+        print_default(writer, path, content, line_numbers, fenced_numbers)
 
 
-def print_default(writer, path, content, line_numbers):
+def print_default(writer, path, content, line_numbers, fenced_numbers=False):
     writer(path)
     writer("---")
     if line_numbers:
-        content = add_line_numbers(content)
+        content = add_line_numbers(content, fenced=fenced_numbers)
     writer(content)
     writer("")
     writer("---")
 
 
-def print_as_xml(writer, path, content, line_numbers):
+def print_as_xml(writer, path, content, line_numbers, fenced_numbers=False):
     global global_index
     writer(f'<document index="{global_index}">')
     writer(f"<source>{path}</source>")
     writer("<document_content>")
     if line_numbers:
-        content = add_line_numbers(content)
+        content = add_line_numbers(content, fenced=fenced_numbers)
     writer(content)
     writer("</document_content>")
     writer("</document>")
@@ -76,11 +79,12 @@ def process_path(
     writer,
     claude_xml,
     line_numbers=False,
+    fenced_numbers=False,
 ):
     if os.path.isfile(path):
         try:
             with open(path, "r") as f:
-                print_path(writer, path, f.read(), claude_xml, line_numbers)
+                print_path(writer, path, f.read(), claude_xml, line_numbers, fenced_numbers)
         except UnicodeDecodeError:
             warning_message = f"Warning: Skipping file {path} due to UnicodeDecodeError"
             click.echo(click.style(warning_message, fg="red"), err=True)
@@ -118,7 +122,12 @@ def process_path(
                 try:
                     with open(file_path, "r") as f:
                         print_path(
-                            writer, file_path, f.read(), claude_xml, line_numbers
+                            writer,
+                            file_path,
+                            f.read(),
+                            claude_xml,
+                            line_numbers,
+                            fenced_numbers,
                         )
                 except UnicodeDecodeError:
                     warning_message = (
@@ -168,6 +177,12 @@ def process_path(
     is_flag=True,
     help="Add line numbers to the output",
 )
+@click.option(
+    "fenced_numbers",
+    "--fenced-line-numbers",
+    is_flag=True,
+    help="Add line numbers in brackets [n] format",
+)
 @click.version_option()
 def cli(
     paths,
@@ -178,6 +193,7 @@ def cli(
     output_file,
     claude_xml,
     line_numbers,
+    fenced_numbers,
 ):
     """
     Takes one or more paths to files or directories and outputs every file,
@@ -239,6 +255,7 @@ def cli(
             writer,
             claude_xml,
             line_numbers,
+            fenced_numbers,
         )
     if claude_xml:
         writer("</documents>")
